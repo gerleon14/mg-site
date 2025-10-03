@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gery ❤️ Mery — Huelva ↔ León</title>
+  <!--
+    👉 Cómo usar este fichero
+    - Coloca tus imágenes en: /photos/gery.jpg y /photos/mery.jpg
+    - Coloca fotos para el botón rojo en /gallery y lista los nombres en /gallery/index.json
+      Ej: ["1.jpg","2.jpg","playa.png"]  (sólo nombres, sin rutas)
+    - Sube todo a GitHub Pages/Netlify (ver instrucciones en el chat).
+    - Código limpio y editable. Puedes añadir secciones nuevas más abajo.
+  -->
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <style>
+    :root{
+      --bg:#0e0a00; /* fondo muy oscuro cálido */
+      --card:#1a1205;
+      --text:#ffe9cc;
+      --muted:#ffd2a1;
+      --accent:#ff3b30; /* rojo botón */
+    }
+    *{ box-sizing:border-box }
+    body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; background:radial-gradient(1200px 800px at 10% 10%, #1c1307 0%, #0e0a00 40%, #0a0700 100%); color:var(--text) }
+    a{ color:var(--muted); text-decoration:none }
+    .wrap{ max-width:1100px; margin:0 auto; padding:20px }
+    header{ display:flex; align-items:center; gap:12px; }
+    h1{ margin:0; font-size: clamp(1.3rem, 1.2rem + 1.2vw, 2rem); letter-spacing:.3px }
+    h1 small{ display:block; opacity:.85; font-weight:500; font-size:.92rem }
+
+    #map{ height: 70vh; border-radius:16px; overflow:hidden; box-shadow:0 18px 60px rgba(0,0,0,.5); margin-top:14px; position:relative }
+
+    /* Teñimos el mapa a naranja sin APIs externas */
+    .leaflet-tile{ filter: hue-rotate(320deg) saturate(1.25) brightness(1.03) contrast(1.02); }
+    .leaflet-container{ background:#1a1205 }
+
+    .corner-actions{ position:fixed; top:16px; right:16px; display:flex; gap:10px; z-index:1000 }
+    .btn{ cursor:pointer; border:none; font-weight:700; border-radius:12px; padding:10px 14px; color:white; box-shadow:0 8px 22px rgba(0,0,0,.35) }
+    .btn.red{ background: var(--accent); }
+    .btn.ghost{ background: transparent; border:1px solid rgba(255,255,255,.25) }
+
+    .legend{ margin-top:10px; display:flex; align-items:center; gap:10px; font-size:.95rem; opacity:.9 }
+
+    /* Heart marker base (SVG via HTML) */
+    .heart-marker{ transform: translateY(-6px); filter: drop-shadow(0 4px 10px rgba(0,0,0,.45)); }
+
+    /* Tooltip (nombres bajo los marcadores) */
+    .leaflet-tooltip.heart-label{ background:rgba(0,0,0,.45); color:#ffe9cc; border:1px solid rgba(255,255,255,.25); border-radius:10px; padding:4px 8px; font-weight:600 }
+
+    /* Lightbox para fotos aleatorias */
+    #lightbox{ position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:1500; }
+    #lightbox.open{ display:flex }
+    #lightbox img{ max-width:92vw; max-height:86vh; border-radius:14px; box-shadow:0 30px 100px rgba(0,0,0,.6) }
+    #lightbox .close{ position:fixed; top:16px; right:16px; background:transparent; border:0; color:#fff; font-size:28px; cursor:pointer }
+
+    /* Accesibilidad foco */
+    .btn:focus-visible, a:focus-visible, button:focus-visible{ outline:3px solid #ffd08a; outline-offset:2px }
+
+    @media (max-width: 640px){
+      #map{ height:64vh }
+      .corner-actions{ top:12px; right:12px }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Huelva ↔ León
+        <small>Dos puntos. Una línea que no se rompe.</small>
+      </h1>
+    </header>
+
+    <div id="map" role="region" aria-label="Mapa con marcadores en Huelva y León"></div>
+
+    <div class="legend" aria-hidden="true">
+      <span>❤️</span> Marcadores: <strong>Gery</strong> (León) · <strong>Mery</strong> (Huelva)
+    </div>
+  </div>
+
+  <!-- Botón rojo en esquina superior derecha -->
+  <div class="corner-actions">
+    <button id="randomBtn" class="btn red" aria-label="Mostrar una foto aleatoria">Foto aleatoria</button>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox" aria-modal="true" role="dialog">
+    <button class="close" aria-label="Cerrar">×</button>
+    <img id="lightboxImg" alt="Foto aleatoria" />
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    // ====== CONFIGURABLE ======
+    const COORDS = {
+      huelva: [37.2614, -6.9447], // Mery
+      leon:   [42.5987, -5.5671]  // Gery
+    };
+    const NAMES = { huelva: 'Mery', leon: 'Gery' };
+    const PROFILE_PHOTOS = { huelva: 'photos/mery.jpg', leon: 'photos/gery.jpg' };
+
+    // Lista de galería: intenta cargar /gallery/index.json; si falla, usa este array manual
+    let GALLERY = [
+      // '1.jpg', '2.jpg', 'playa.png'
+    ];
+
+    // ====== MAPA ======
+    const map = L.map('map', { zoomControl: true, scrollWheelZoom: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+    // Vista inicial centrada en la Península Ibérica
+    map.setView([40.0, -4.0], 5.5);
+
+    // Utilidad: crear un marcador en forma de corazón
+    const heartSVG = (fill='#ff4d6d') => `\n      <svg width="36" height="36" viewBox="0 0 32 29" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">\n        <path d="M23.6,0c-2.9,0-5.4,1.7-7.6,4.6C13.8,1.7,11.3,0,8.4,0C3.8,0,0,3.8,0,8.4c0,7.4,8.3,11.6,15.1,20.6c6.3-9,15.1-13.3,15.1-20.6C30.2,3.8,26.4,0,21.8,0z" fill="${fill}" stroke="white" stroke-width="1.2"/>\n      </svg>`;
+
+    const heartIcon = L.divIcon({ className: 'heart-marker', html: heartSVG(), iconSize: [36,36], iconAnchor: [18,18] });
+
+    // Marcadores
+    const mkHuelva = L.marker(COORDS.huelva, { icon: heartIcon, title: `Huelva — ${NAMES.huelva}` }).addTo(map);
+    const mkLeon   = L.marker(COORDS.leon,   { icon: heartIcon, title: `León — ${NAMES.leon}` }).addTo(map);
+
+    // Nombres debajo de los marcadores (tooltips permanentes)
+    mkHuelva.bindTooltip(NAMES.huelva, { permanent:true, direction:'bottom', offset:[0, 10], className:'heart-label' });
+    mkLeon.bindTooltip(NAMES.leon, { permanent:true, direction:'bottom', offset:[0, 10], className:'heart-label' });
+
+    // Popups con fotos al pulsar en cada marcador
+    const imgHTML = (src, alt) => `<div style="display:flex;align-items:center;gap:10px"><img src="${src}" alt="${alt}" style="width:120px;height:120px;object-fit:cover;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.35)"/><div><strong>${alt}</strong></div></div>`;
+    mkHuelva.bindPopup(imgHTML(PROFILE_PHOTOS.huelva, NAMES.huelva));
+    mkLeon.bindPopup(imgHTML(PROFILE_PHOTOS.leon, NAMES.leon));
+
+    // Línea entre ciudades para enfatizar la conexión
+    const link = L.polyline([COORDS.huelva, COORDS.leon], { color:'#ff9a3c', weight:4, dashArray:'8,8', opacity:.9 }).addTo(map);
+
+    // ====== BOTÓN ROJO: Foto aleatoria ======
+    const randomBtn = document.getElementById('randomBtn');
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightboxImg');
+    const closeBtn = document.querySelector('#lightbox .close');
+
+    function openLightbox(src){
+      lightboxImg.src = src;
+      lightbox.classList.add('open');
+      closeBtn.focus({ preventScroll:true });
+    }
+    function closeLightbox(){
+      lightbox.classList.remove('open');
+      lightboxImg.src = '';
+      randomBtn.focus({ preventScroll:true });
+    }
+
+    closeBtn.addEventListener('click', closeLightbox);
+    lightbox.addEventListener('click', (e)=>{ if(e.target === lightbox) closeLightbox(); });
+    window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeLightbox(); });
+
+    async function ensureGallery(){
+      try {
+        const res = await fetch('gallery/index.json', { cache:'no-store' });
+        if (res.ok) {
+          const arr = await res.json();
+          if (Array.isArray(arr) && arr.length) GALLERY = arr;
+        }
+      } catch(err){ /* sin manifest: usamos el array embebido */ }
+    }
+
+    function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+    randomBtn.addEventListener('click', async ()=>{
+      if (!GALLERY.length) await ensureGallery();
+      if (!GALLERY.length) {
+        alert('Añade fotos en /gallery y lista los nombres en /gallery/index.json');
+        return;
+      }
+      const file = randomFrom(GALLERY);
+      openLightbox(`gallery/${file}`);
+    });
+
+    // Ajusta la vista para asegurar que ambos marcadores salgan bien encuadrados (por si cambias zoom por defecto)
+    function fitBoth(){ map.fitBounds(link.getBounds(), { padding: [40,40] }); }
+    // fitBoth(); // opcional: activa si prefieres auto-encuadre en vez de setView
+  </script>
+</body>
+</html>
