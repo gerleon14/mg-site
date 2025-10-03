@@ -75,19 +75,19 @@
     <div id="map" role="region" aria-label="Mapa con marcadores en Huelva y León"></div>
 
     <div class="legend" aria-hidden="true">
-      <span>❤️</span> Marcadores: <strong>Gery</strong> (León) · <strong>Mery</strong> (Huelva)
+      <span>❤️</span> Marcadores: <strong>Tontito</strong> (León) · <strong>Guapita</strong> (Huelva)
     </div>
   </div>
 
   <!-- Botón rojo en esquina superior derecha -->
   <div class="corner-actions">
-    <button id="randomBtn" class="btn red" aria-label="Mostrar una foto aleatoria">Pulsamé 😊 </button>
+    <button id="randomBtn" class="btn red" aria-label="Mostrar una foto aleatoria">Pulsamé 😊</button>
   </div>
 
   <!-- Lightbox -->
   <div id="lightbox" aria-modal="true" role="dialog">
     <button class="close" aria-label="Cerrar">×</button>
-    <img id="lightboxImg" alt="Foto aleatoria" />
+    <img id="lightboxImg" alt="Pulsamé 😊" />
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -98,7 +98,7 @@
       leon:   [42.5987, -5.5671]  // Gery
     };
     const NAMES = { huelva: 'Mery', leon: 'Gery' };
-    const PROFILE_PHOTOS = { huelva: 'photos/mery.jpg', leon: 'photos/gery.jpg' };
+    const PROFILE_PHOTOS = { huelva: 'photos/mery.jpeg', leon: 'photos/gery.jpeg' };
 
     // Lista de galería: intenta cargar /gallery/index.json; si falla, usa este array manual
     let GALLERY = [
